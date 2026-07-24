@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIMS V1 Pipeline Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #f7f7f5; color: #1a1a1a;
+    max-width: 1280px; margin-left: auto; margin-right: auto;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .subtitle { color: #6b6b6b; font-size: 13px; margin: 0 0 16px; }
+  .tabs {
+    display: flex; gap: 4px; border-bottom: 1px solid #e0e0dc; margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    padding: 8px 14px; font-size: 13px; cursor: pointer; border: none; background: none;
+    color: #6b6b6b; border-bottom: 2px solid transparent; font-weight: 500;
+  }
+  .tab.active { color: #1a1a1a; border-bottom-color: #c15f3c; }
+  .tab:hover { color: #1a1a1a; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px 14px; }
+  .card .label { font-size: 11px; color: #8a8a85; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 4px; }
+  .card .value { font-size: 22px; font-weight: 600; }
+  section-title { display:block; font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: #444; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e8e8e4; }
+  th, td { text-align: left; padding: 8px 10px; font-size: 12.5px; border-bottom: 1px solid #f0f0ec; }
+  th { background: #fafaf8; color: #6b6b6b; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .badge.completed { background: #e3f3e8; color: #2a7a42; }
+  .badge.running { background: #fff3d6; color: #92680a; }
+  .badge.stuck { background: #fde3e0; color: #b3311a; }
+  .badge.error { background: #fde3e0; color: #b3311a; }
+  .badge.proceed { background: #e3f3e8; color: #2a7a42; }
+  .badge.hold { background: #fff3d6; color: #92680a; }
+  .badge.reject { background: #f0f0ec; color: #6b6b6b; }
+  .grid-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px; }
+  .content-card .ctitle { font-size: 13px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
+  .content-card .csummary { font-size: 11.5px; color: #6b6b6b; margin: 0 0 8px; line-height: 1.4; }
+  .content-card .cmeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10.5px; }
+  .tag { background: #f0f0ec; color: #555; padding: 2px 6px; border-radius: 4px; }
+  .empty-state { text-align: center; padding: 40px 20px; color: #8a8a85; font-size: 13px; }
+  .refresh-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
+  .refresh-btn { font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+  .loading { color: #8a8a85; font-size: 12px; padding: 20px; text-align: center; }
+  .score { font-variant-numeric: tabular-nums; }
+  .error-box { background:#fde3e0;border:1px solid #f3b3a8;border-radius:8px;padding:12px;font-size:12px;white-space:pre-wrap;word-break:break-all; }
+  footer { margin-top: 30px; color: #b0b0aa; font-size: 11px; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="refresh-row">
+  <div>
+    <h1>AIMS V1 Pipeline Dashboard</h1>
+    <p class="subtitle">Monitor discovery runs (S0–S8) dan hasil konten — data live dari Supabase</p>
+  </div>
+  <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-panel="overview" onclick="switchTab('overview')">Overview</button>
+  <button class="tab" data-panel="runs" onclick="switchTab('runs')">Pipeline Runs</button>
+  <button class="tab" data-panel="topics" onclick="switchTab('topics')">Topik &amp; Skor</button>
+  <button class="tab" data-panel="content" onclick="switchTab('content')">Siap Publish</button>
+  <button class="tab" data-panel="cost" onclick="switchTab('cost')">Biaya AI</button>
+</div>
+
+<div id="panel-overview" class="panel active"><div class="loading">Memuat...</div></div>
+<div id="panel-runs" class="panel"><div class="loading">Memuat...</div></div>
+<div id="panel-topics" class="panel"><div class="loading">Memuat...</div></div>
+<div id="panel-content" class="panel"><div class="loading">Memuat...</div></div>
+<div id="panel-cost" class="panel"><div class="loading">Memuat...</div></div>
+
+<footer>AIMS V1 Pipeline Dashboard — data read-only dari Supabase</footer>
+
+<script>
+const SUPABASE_URL = 'https://fwvenhqyirkgujfkwbvm.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_fz_uOjh55uYR7W47-11hDQ_hCgs2fI_';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function fmtDate(d) {
+  if (!d) return '–';
+  const dt = new Date(d);
+  return dt.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function runStatusBadge(run) {
+  if (run.status === 'completed') return '<span class="badge completed">completed</span>';
+  if (run.status === 'running') {
+    const ageMin = (Date.now() - new Date(run.created_at).getTime()) / 60000;
+    if (ageMin > 15) return '<span class="badge stuck">stuck (' + Math.round(ageMin) + 'm)</span>';
+    return '<span class="badge running">running</span>';
+  }
+  return '<span class="badge error">' + escapeHtml(run.status) + '</span>';
+}
+
+function decisionBadge(d) {
+  if (!d) return '<span class="tag">–</span>';
+  const cls = d === 'proceed' ? 'proceed' : (d === 'hold' ? 'hold' : 'reject');
+  return '<span class="badge ' + cls + '">' + escapeHtml(d) + '</span>';
+}
+
+function errorPanel(panelId, err) {
+  document.getElementById(panelId).innerHTML =
+    '<div class="error-box">Gagal memuat data:\n' + escapeHtml(err?.message || String(err)) + '</div>';
+}
+
+let allRuns = [];
+
+async function loadOverview() {
+  const { data: runs, error } = await sb
+    .from('discovery_runs')
+    .select('id, status, current_stage, total_raw_items, total_normalized_items, total_clusters, total_canonical_topics, total_scored_topics, total_approved_topics, created_at, completed_at')
+    .order('created_at', { ascending: false });
+
+  if (error) { errorPanel('panel-overview', error); return; }
+  allRuns = runs || [];
+
+  const totalRuns = allRuns.length;
+  const completed = allRuns.filter(r => r.status === 'completed').length;
+  const stuckOrRunning = allRuns.filter(r => r.status === 'running');
+  const stuck = stuckOrRunning.filter(r => (Date.now() - new Date(r.created_at).getTime()) / 60000 > 15).length;
+  const activeRunning = stuckOrRunning.length - stuck;
+  const totalApproved = allRuns.reduce((s, r) => s + (r.total_approved_topics || 0), 0);
+  const totalTopics = allRuns.reduce((s, r) => s + (r.total_canonical_topics || 0), 0);
+  const latest = allRuns[0];
+
+  let html = '<div class="cards">';
+  html += `<div class="card"><div class="label">Total Runs</div><div class="value">${totalRuns}</div></div>`;
+  html += `<div class="card"><div class="label">Completed</div><div class="value">${completed}</div></div>`;
+  html += `<div class="card"><div class="label">Sedang Jalan</div><div class="value">${activeRunning}</div></div>`;
+  html += `<div class="card"><div class="label">Stuck (&gt;15m)</div><div class="value" style="color:${stuck>0?'#b3311a':'inherit'}">${stuck}</div></div>`;
+  html += `<div class="card"><div class="label">Total Topik Ditemukan</div><div class="value">${totalTopics}</div></div>`;
+  html += `<div class="card"><div class="label">Total Approved (proceed)</div><div class="value">${totalApproved}</div></div>`;
+  html += '</div>';
+
+  if (latest) {
+    html += '<section-title>Run Terakhir</section-title>';
+    html += '<table><tbody>';
+    html += `<tr><th>Status</th><td>${runStatusBadge(latest)}</td></tr>`;
+    html += `<tr><th>Stage Terakhir</th><td>${escapeHtml(latest.current_stage)}</td></tr>`;
+    html += `<tr><th>Dimulai</th><td>${fmtDate(latest.created_at)}</td></tr>`;
+    html += `<tr><th>Selesai</th><td>${fmtDate(latest.completed_at)}</td></tr>`;
+    html += `<tr><th>Raw → Normalized → Clusters → Topics → Scored → Approved</th><td>${latest.total_raw_items||0} → ${latest.total_normalized_items||0} → ${latest.total_clusters||0} → ${latest.total_canonical_topics||0} → ${latest.total_scored_topics||0} → ${latest.total_approved_topics||0}</td></tr>`;
+    html += '</tbody></table>';
+  }
+
+  document.getElementById('panel-overview').innerHTML = html;
+}
+
+async function loadRuns() {
+  if (!allRuns.length) {
+    const { data, error } = await sb
+      .from('discovery_runs')
+      .select('id, status, current_stage, total_raw_items, total_normalized_items, total_clusters, total_canonical_topics, total_scored_topics, total_approved_topics, created_at, completed_at')
+      .order('created_at', { ascending: false });
+    if (error) { errorPanel('panel-runs', error); return; }
+    allRuns = data || [];
+  }
+
+  let html = '<table><thead><tr><th>Status</th><th>Stage</th><th>Raw</th><th>Norm</th><th>Cluster</th><th>Topics</th><th>Scored</th><th>Approved</th><th>Mulai</th><th>Selesai</th></tr></thead><tbody>';
+  for (const r of allRuns) {
+    html += `<tr>
+      <td>${runStatusBadge(r)}</td>
+      <td>${escapeHtml(r.current_stage)}</td>
+      <td>${r.total_raw_items||0}</td>
+      <td>${r.total_normalized_items||0}</td>
+      <td>${r.total_clusters||0}</td>
+      <td>${r.total_canonical_topics||0}</td>
+      <td>${r.total_scored_topics||0}</td>
+      <td>${r.total_approved_topics||0}</td>
+      <td>${fmtDate(r.created_at)}</td>
+      <td>${fmtDate(r.completed_at)}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('panel-runs').innerHTML = html;
+}
+
+async function loadTopics() {
+  const { data: rows, error } = await sb
+    .from('canonical_topics')
+    .select(`
+      title, summary, primary_source_name, published_at, discovered_at,
+      topic_scores ( total_score, passed_threshold ),
+      opportunity_assessments ( opportunity_score, opportunity_type, decision ),
+      format_recommendations ( primary_format, secondary_format )
+    `)
+    .eq('is_rejected', false)
+    .order('discovered_at', { ascending: false })
+    .limit(50);
+
+  if (error) { errorPanel('panel-topics', error); return; }
+
+  if (!rows || !rows.length) {
+    document.getElementById('panel-topics').innerHTML = '<div class="empty-state">Belum ada topik. Jalankan pipeline S1 terlebih dahulu.</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr><th>Judul</th><th>Sumber</th><th>Skor MCDA</th><th>Opportunity</th><th>Keputusan</th><th>Format</th></tr></thead><tbody>';
+  for (const t of rows) {
+    const ts = Array.isArray(t.topic_scores) ? t.topic_scores[0] : t.topic_scores;
+    const oa = Array.isArray(t.opportunity_assessments) ? t.opportunity_assessments[0] : t.opportunity_assessments;
+    const fr = Array.isArray(t.format_recommendations) ? t.format_recommendations[0] : t.format_recommendations;
+    html += `<tr>
+      <td style="max-width:280px">${escapeHtml(t.title)}</td>
+      <td>${escapeHtml(t.primary_source_name)}</td>
+      <td class="score">${ts?.total_score ?? '–'}</td>
+      <td class="score">${oa?.opportunity_score ?? '–'} ${oa?.opportunity_type ? '('+escapeHtml(oa.opportunity_type)+')' : ''}</td>
+      <td>${decisionBadge(oa?.decision)}</td>
+      <td>${fr?.primary_format ? escapeHtml(fr.primary_format) + (fr.secondary_format ? ' / '+escapeHtml(fr.secondary_format) : '') : '–'}</td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  document.getElementById('panel-topics').innerHTML = html;
+}
+
+async function loadContent() {
+  const { data: packages, error: pkgErr } = await sb
+    .from('production_packages')
+    .select('headline, template_id, preview_url, render_output_url, editorial_status, qc_reports ( founder_decision )')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (pkgErr) { errorPanel('panel-content', pkgErr); return; }
+
+  if (packages && packages.length) {
+    let html = '<div class="grid-content">';
+    for (const p of packages) {
+      const qr = Array.isArray(p.qc_reports) ? p.qc_reports[0] : p.qc_reports;
+      html += `<div class="content-card">
+        <p class="ctitle">${escapeHtml(p.headline)}</p>
+        <div class="cmeta">
+          <span class="tag">${escapeHtml(p.template_id || 'no template')}</span>
+          <span class="tag">${escapeHtml(qr?.founder_decision || p.editorial_status || 'pending')}</span>
+        </div>
+      </div>`;
+    }
+    html += '</div>';
+    document.getElementById('panel-content').innerHTML = html;
+    return;
+  }
+
+  const { data: proceedTopics, error: topicErr } = await sb
+    .from('canonical_topics')
+    .select(`
+      title, summary, discovered_at,
+      opportunity_assessments!inner ( opportunity_type, reasoning, decision ),
+      format_recommendations ( primary_format, secondary_format )
+    `)
+    .eq('opportunity_assessments.decision', 'proceed')
+    .order('discovered_at', { ascending: false })
+    .limit(50);
+
+  if (topicErr) { errorPanel('panel-content', topicErr); return; }
+
+  if (!proceedTopics || !proceedTopics.length) {
+    document.getElementById('panel-content').innerHTML = '<div class="empty-state">Belum ada konten. Tahap produksi konten (S2–S8) belum berjalan — tab ini akan otomatis terisi begitu production_packages mulai diisi.</div>';
+    return;
+  }
+
+  let html = '<div class="empty-state" style="padding:12px 0 20px;text-align:left">Tahap produksi (S2–S8) belum berjalan. Berikut topik yang sudah lolos S1 (status "proceed") dan menunggu diproduksi jadi konten:</div>';
+  html += '<div class="grid-content">';
+  for (const t of proceedTopics) {
+    const fr = Array.isArray(t.format_recommendations) ? t.format_recommendations[0] : t.format_recommendations;
+    const oa = Array.isArray(t.opportunity_assessments) ? t.opportunity_assessments[0] : t.opportunity_assessments;
+    html += `<div class="content-card">
+      <p class="ctitle">${escapeHtml(t.title)}</p>
+      <p class="csummary">${escapeHtml(t.summary || '')}</p>
+      <div class="cmeta">
+        <span class="tag">${escapeHtml(oa?.opportunity_type || '')}</span>
+        <span class="tag">${escapeHtml(fr?.primary_format || 'format belum ditentukan')}</span>
+      </div>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('panel-content').innerHTML = html;
+}
+
+async function loadCost() {
+  const { data: byStage, error } = await sb
+    .from('cost_events')
+    .select('stage, provider, model_version, cost_usd, tokens_input, tokens_output');
+
+  if (error) { errorPanel('panel-cost', error); return; }
+
+  const grouped = {};
+  let total = 0;
+  for (const r of (byStage || [])) {
+    const key = `${r.stage}|${r.provider}|${r.model_version}`;
+    if (!grouped[key]) grouped[key] = { stage: r.stage, provider: r.provider, model_version: r.model_version, calls: 0, cost: 0, tin: 0, tout: 0 };
+    grouped[key].calls++;
+    grouped[key].cost += Number(r.cost_usd || 0);
+    grouped[key].tin += Number(r.tokens_input || 0);
+    grouped[key].tout += Number(r.tokens_output || 0);
+    total += Number(r.cost_usd || 0);
+  }
+  const rows = Object.values(grouped).sort((a, b) => b.cost - a.cost);
+
+  let html = '<div class="cards">';
+  html += `<div class="card"><div class="label">Total Biaya AI</div><div class="value">$${total.toFixed(4)}</div></div>`;
+  html += '</div>';
+
+  if (!rows.length) {
+    html += '<div class="empty-state">Belum ada data biaya.</div>';
+  } else {
+    html += '<table><thead><tr><th>Stage</th><th>Provider</th><th>Model</th><th>Calls</th><th>Tokens In</th><th>Tokens Out</th><th>Biaya (USD)</th></tr></thead><tbody>';
+    for (const r of rows) {
+      html += `<tr>
+        <td>${escapeHtml(r.stage)}</td>
+        <td>${escapeHtml(r.provider)}</td>
+        <td>${escapeHtml(r.model_version)}</td>
+        <td>${r.calls}</td>
+        <td>${r.tin}</td>
+        <td>${r.tout}</td>
+        <td>$${r.cost.toFixed(4)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  }
+  document.getElementById('panel-cost').innerHTML = html;
+}
+
+async function loadAll() {
+  document.querySelectorAll('.panel').forEach(p => p.innerHTML = '<div class="loading">Memuat...</div>');
+  await loadOverview();
+  await Promise.all([loadRuns(), loadTopics(), loadContent(), loadCost()]);
+}
+
+loadAll();
+</script>
+</body>
+</html>
