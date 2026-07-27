@@ -49,6 +49,9 @@
   .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; overflow: hidden; }
   .content-card .cthumb { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; background: #f0f0ec; }
   .content-card .cthumb-empty { width: 100%; aspect-ratio: 4/5; display: flex; align-items: center; justify-content: center; background: #f0f0ec; color: #b0b0aa; font-size: 11px; }
+  .content-card .cstrip { display: flex; gap: 3px; overflow-x: auto; padding: 6px; background: #f0f0ec; }
+  .content-card .cstrip img { flex: 0 0 64px; width: 64px; aspect-ratio: 4/5; object-fit: cover; border-radius: 4px; display: block; cursor: pointer; border: 2px solid transparent; }
+  .content-card .cstrip img.active { border-color: #c15f3c; }
   .content-card .cbody { padding: 12px; }
   .content-card .ctitle { font-size: 13px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
   .content-card .csummary { font-size: 11.5px; color: #6b6b6b; margin: 0 0 8px; line-height: 1.4; }
@@ -252,22 +255,34 @@ async function loadContent() {
 
   if (packages && packages.length) {
     let html = '<div class="grid-content">';
-    for (const p of packages) {
+    packages.forEach((p, pi) => {
       const qr = Array.isArray(p.qc_reports) ? p.qc_reports[0] : p.qc_reports;
-      const thumb = p.preview_url
-        ? `<img class="cthumb" src="${escapeHtml(p.preview_url)}" alt="${escapeHtml(p.headline)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cthumb-empty&quot;>Gambar tidak tersedia</div>'">`
-        : `<div class="cthumb-empty">Tanpa preview</div>`;
+      const slides = Array.isArray(p.render_output_url) ? p.render_output_url.filter(s => s && s.imageUrl) : [];
+      const mainSrc = slides.length ? slides[0].imageUrl : p.preview_url;
+
+      let visual;
+      if (mainSrc) {
+        visual = `<img class="cthumb" id="main-${pi}" src="${escapeHtml(mainSrc)}" alt="${escapeHtml(p.headline)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cthumb-empty&quot;>Gambar tidak tersedia</div>'">`;
+        if (slides.length > 1) {
+          const stripItems = slides.map((s, si) => `<img src="${escapeHtml(s.imageUrl)}" loading="lazy" class="${si===0?'active':''}" onclick="document.getElementById('main-${pi}').src=this.src; this.parentElement.querySelectorAll('img').forEach(i=>i.classList.remove('active')); this.classList.add('active');" alt="Slide ${s.slideNumber||si+1}">`).join('');
+          visual += `<div class="cstrip">${stripItems}</div>`;
+        }
+      } else {
+        visual = `<div class="cthumb-empty">Tanpa preview</div>`;
+      }
+
       html += `<div class="content-card">
-        ${thumb}
+        ${visual}
         <div class="cbody">
           <p class="ctitle">${escapeHtml(p.headline)}</p>
           <div class="cmeta">
             <span class="tag">${escapeHtml(p.template_id || 'no template')}</span>
             <span class="tag">${escapeHtml(qr?.founder_decision || p.editorial_status || 'pending')}</span>
+            ${slides.length ? `<span class="tag">${slides.length} slide</span>` : ''}
           </div>
         </div>
       </div>`;
-    }
+    });
     html += '</div>';
     document.getElementById('panel-content').innerHTML = html;
     return;
