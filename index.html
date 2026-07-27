@@ -46,7 +46,10 @@
   .badge.hold { background: #fff3d6; color: #92680a; }
   .badge.reject { background: #f0f0ec; color: #6b6b6b; }
   .grid-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px; }
+  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; overflow: hidden; }
+  .content-card .cthumb { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; background: #f0f0ec; }
+  .content-card .cthumb-empty { width: 100%; aspect-ratio: 4/5; display: flex; align-items: center; justify-content: center; background: #f0f0ec; color: #b0b0aa; font-size: 11px; }
+  .content-card .cbody { padding: 12px; }
   .content-card .ctitle { font-size: 13px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
   .content-card .csummary { font-size: 11.5px; color: #6b6b6b; margin: 0 0 8px; line-height: 1.4; }
   .content-card .cmeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10.5px; }
@@ -251,11 +254,17 @@ async function loadContent() {
     let html = '<div class="grid-content">';
     for (const p of packages) {
       const qr = Array.isArray(p.qc_reports) ? p.qc_reports[0] : p.qc_reports;
+      const thumb = p.preview_url
+        ? `<img class="cthumb" src="${escapeHtml(p.preview_url)}" alt="${escapeHtml(p.headline)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cthumb-empty&quot;>Gambar tidak tersedia</div>'">`
+        : `<div class="cthumb-empty">Tanpa preview</div>`;
       html += `<div class="content-card">
-        <p class="ctitle">${escapeHtml(p.headline)}</p>
-        <div class="cmeta">
-          <span class="tag">${escapeHtml(p.template_id || 'no template')}</span>
-          <span class="tag">${escapeHtml(qr?.founder_decision || p.editorial_status || 'pending')}</span>
+        ${thumb}
+        <div class="cbody">
+          <p class="ctitle">${escapeHtml(p.headline)}</p>
+          <div class="cmeta">
+            <span class="tag">${escapeHtml(p.template_id || 'no template')}</span>
+            <span class="tag">${escapeHtml(qr?.founder_decision || p.editorial_status || 'pending')}</span>
+          </div>
         </div>
       </div>`;
     }
@@ -288,11 +297,13 @@ async function loadContent() {
     const fr = Array.isArray(t.format_recommendations) ? t.format_recommendations[0] : t.format_recommendations;
     const oa = Array.isArray(t.opportunity_assessments) ? t.opportunity_assessments[0] : t.opportunity_assessments;
     html += `<div class="content-card">
-      <p class="ctitle">${escapeHtml(t.title)}</p>
-      <p class="csummary">${escapeHtml(t.summary || '')}</p>
-      <div class="cmeta">
-        <span class="tag">${escapeHtml(oa?.opportunity_type || '')}</span>
-        <span class="tag">${escapeHtml(fr?.primary_format || 'format belum ditentukan')}</span>
+      <div class="cbody">
+        <p class="ctitle">${escapeHtml(t.title)}</p>
+        <p class="csummary">${escapeHtml(t.summary || '')}</p>
+        <div class="cmeta">
+          <span class="tag">${escapeHtml(oa?.opportunity_type || '')}</span>
+          <span class="tag">${escapeHtml(fr?.primary_format || 'format belum ditentukan')}</span>
+        </div>
       </div>
     </div>`;
   }
