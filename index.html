@@ -45,14 +45,11 @@
   .badge.proceed { background: #e3f3e8; color: #2a7a42; }
   .badge.hold { background: #fff3d6; color: #92680a; }
   .badge.reject { background: #f0f0ec; color: #6b6b6b; }
+  .badge.produced { background: #fff3d6; color: #92680a; }
+  .badge.ready_to_publish { background: #e3f3e8; color: #2a7a42; }
+  .badge.rejected { background: #fde3e0; color: #b3311a; }
   .grid-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; overflow: hidden; }
-  .content-card .cthumb { width: 100%; aspect-ratio: 4/5; object-fit: cover; display: block; background: #f0f0ec; }
-  .content-card .cthumb-empty { width: 100%; aspect-ratio: 4/5; display: flex; align-items: center; justify-content: center; background: #f0f0ec; color: #b0b0aa; font-size: 11px; }
-  .content-card .cstrip { display: flex; gap: 3px; overflow-x: auto; padding: 6px; background: #f0f0ec; }
-  .content-card .cstrip img { flex: 0 0 64px; width: 64px; aspect-ratio: 4/5; object-fit: cover; border-radius: 4px; display: block; cursor: pointer; border: 2px solid transparent; }
-  .content-card .cstrip img.active { border-color: #c15f3c; }
-  .content-card .cbody { padding: 12px; }
+  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px; }
   .content-card .ctitle { font-size: 13px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
   .content-card .csummary { font-size: 11.5px; color: #6b6b6b; margin: 0 0 8px; line-height: 1.4; }
   .content-card .cmeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10.5px; }
@@ -64,6 +61,31 @@
   .score { font-variant-numeric: tabular-nums; }
   .error-box { background:#fde3e0;border:1px solid #f3b3a8;border-radius:8px;padding:12px;font-size:12px;white-space:pre-wrap;word-break:break-all; }
   footer { margin-top: 30px; color: #b0b0aa; font-size: 11px; text-align: center; }
+
+  /* Siap Publish - carousel preview & aksi */
+  .content-subtabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .subtab-btn {
+    font-size: 12px; padding: 6px 12px; border-radius: 14px; border: 1px solid #e0e0dc;
+    background: #fff; cursor: pointer; color: #6b6b6b;
+  }
+  .subtab-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .publish-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
+  .publish-card .pc-head { padding: 12px 14px 8px; }
+  .publish-card .ptitle { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
+  .publish-card .pmeta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: #8a8a85; align-items: center; }
+  .slides-strip { display: flex; gap: 8px; overflow-x: auto; padding: 8px 14px; background: #fafaf8; }
+  .slides-strip img { height: 160px; width: auto; border-radius: 6px; border: 1px solid #e8e8e4; flex-shrink: 0; cursor: zoom-in; }
+  .publish-actions { padding: 10px 14px 14px; display: flex; gap: 8px; }
+  .pbtn { flex: 1; padding: 8px; border-radius: 6px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .pbtn-approve { background: #2a7a42; color: #fff; }
+  .pbtn-reject { background: #b3311a; color: #fff; }
+  .pbtn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .pbtn.pbtn-done { background: #f0f0ec; color: #8a8a85; }
+  #lightbox {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    z-index: 100; align-items: center; justify-content: center; cursor: zoom-out;
+  }
+  #lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -90,7 +112,9 @@
 <div id="panel-content" class="panel"><div class="loading">Memuat...</div></div>
 <div id="panel-cost" class="panel"><div class="loading">Memuat...</div></div>
 
-<footer>AIMS V1 Pipeline Dashboard — data read-only dari Supabase</footer>
+<footer>AIMS V1 Pipeline Dashboard — data read-only dari Supabase (kecuali Approve/Reject di tab Siap Publish)</footer>
+
+<div id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt=""></div>
 
 <script>
 const SUPABASE_URL = 'https://fwvenhqyirkgujfkwbvm.supabase.co';
@@ -132,6 +156,14 @@ function decisionBadge(d) {
 function errorPanel(panelId, err) {
   document.getElementById(panelId).innerHTML =
     '<div class="error-box">Gagal memuat data:\n' + escapeHtml(err?.message || String(err)) + '</div>';
+}
+
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+}
+function closeLightbox() {
+  document.getElementById('lightbox').style.display = 'none';
 }
 
 let allRuns = [];
@@ -244,86 +276,157 @@ async function loadTopics() {
   document.getElementById('panel-topics').innerHTML = html;
 }
 
+// ===== Tab "Siap Publish" — hasil render S3 (content_production) =====
+// Diperbarui: sebelumnya membaca production_packages (tabel lama, kosong untuk
+// pipeline S1→S2→S3 baru). Sekarang membaca content_production (hasil render
+// nyata dari workflow "S3 - Content Generator"), join ke content_items untuk
+// status keputusan publish dan ke canonical_topics untuk judul/ringkasan.
+// Filter default: "produced" (menunggu review) - founder klik Approve/Reject,
+// yang meng-update content_items.status ke 'ready_to_publish' / 'rejected'.
+let allPublishItems = [];
+let publishFilter = 'produced';
+
 async function loadContent() {
-  const { data: packages, error: pkgErr } = await sb
-    .from('production_packages')
-    .select('headline, template_id, preview_url, render_output_url, editorial_status, qc_reports ( founder_decision )')
-    .order('created_at', { ascending: false })
-    .limit(50);
+  const { data: productions, error: prodErr } = await sb
+    .from('content_production')
+    .select('id, content_item_id, image_urls, template_used, rendered_at, status')
+    .eq('status', 'success')
+    .order('rendered_at', { ascending: false })
+    .limit(100);
 
-  if (pkgErr) { errorPanel('panel-content', pkgErr); return; }
+  if (prodErr) { errorPanel('panel-content', prodErr); return; }
 
-  if (packages && packages.length) {
-    let html = '<div class="grid-content">';
-    packages.forEach((p, pi) => {
-      const qr = Array.isArray(p.qc_reports) ? p.qc_reports[0] : p.qc_reports;
-      const slides = Array.isArray(p.render_output_url) ? p.render_output_url.filter(s => s && s.imageUrl) : [];
-      const mainSrc = slides.length ? slides[0].imageUrl : p.preview_url;
+  if (!productions || !productions.length) {
+    document.getElementById('panel-content').innerHTML =
+      '<div class="empty-state">Belum ada konten yang selesai dirender. Jalankan workflow S3 - Content Generator terlebih dahulu.</div>';
+    return;
+  }
 
-      let visual;
-      if (mainSrc) {
-        visual = `<img class="cthumb" id="main-${pi}" src="${escapeHtml(mainSrc)}" alt="${escapeHtml(p.headline)}" loading="lazy" onerror="this.outerHTML='<div class=&quot;cthumb-empty&quot;>Gambar tidak tersedia</div>'">`;
-        if (slides.length > 1) {
-          const stripItems = slides.map((s, si) => `<img src="${escapeHtml(s.imageUrl)}" loading="lazy" class="${si===0?'active':''}" onclick="document.getElementById('main-${pi}').src=this.src; this.parentElement.querySelectorAll('img').forEach(i=>i.classList.remove('active')); this.classList.add('active');" alt="Slide ${s.slideNumber||si+1}">`).join('');
-          visual += `<div class="cstrip">${stripItems}</div>`;
-        }
-      } else {
-        visual = `<div class="cthumb-empty">Tanpa preview</div>`;
-      }
+  const itemIds = [...new Set(productions.map(p => p.content_item_id))];
+  const { data: items, error: itemErr } = await sb
+    .from('content_items')
+    .select('id, canonical_topic_id, brand_id, status')
+    .in('id', itemIds);
+  if (itemErr) { errorPanel('panel-content', itemErr); return; }
+  const itemMap = new Map((items || []).map(i => [i.id, i]));
 
-      html += `<div class="content-card">
-        ${visual}
-        <div class="cbody">
-          <p class="ctitle">${escapeHtml(p.headline)}</p>
-          <div class="cmeta">
-            <span class="tag">${escapeHtml(p.template_id || 'no template')}</span>
-            <span class="tag">${escapeHtml(qr?.founder_decision || p.editorial_status || 'pending')}</span>
-            ${slides.length ? `<span class="tag">${slides.length} slide</span>` : ''}
-          </div>
-        </div>
-      </div>`;
+  const topicIds = [...new Set((items || []).map(i => i.canonical_topic_id).filter(Boolean))];
+  const brandIds = [...new Set((items || []).map(i => i.brand_id).filter(Boolean))];
+
+  const [{ data: topics }, { data: brands }] = await Promise.all([
+    topicIds.length
+      ? sb.from('canonical_topics').select('id, title, summary, primary_source_name').in('id', topicIds)
+      : Promise.resolve({ data: [] }),
+    brandIds.length
+      ? sb.from('brands').select('id, name').in('id', brandIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const topicMap = new Map((topics || []).map(t => [t.id, t]));
+  const brandMap = new Map((brands || []).map(b => [b.id, b]));
+
+  allPublishItems = productions
+    .filter(p => Array.isArray(p.image_urls) && p.image_urls.length > 0)
+    .map(p => {
+      const item = itemMap.get(p.content_item_id);
+      const topic = item ? topicMap.get(item.canonical_topic_id) : null;
+      const brand = item ? brandMap.get(item.brand_id) : null;
+      return {
+        production_id: p.id,
+        content_item_id: p.content_item_id,
+        image_urls: p.image_urls,
+        template_used: p.template_used,
+        rendered_at: p.rendered_at,
+        item_status: item ? item.status : 'unknown',
+        title: topic ? topic.title : '(judul tidak tersedia)',
+        summary: topic ? topic.summary : '',
+        source: topic ? topic.primary_source_name : '-',
+        brand_name: brand ? brand.name : '-',
+      };
     });
-    html += '</div>';
+
+  renderPublishPanel();
+}
+
+function setPublishFilter(f) {
+  publishFilter = f;
+  renderPublishPanel();
+}
+
+function renderPublishPanel() {
+  const counts = {
+    produced: allPublishItems.filter(it => it.item_status === 'produced').length,
+    ready_to_publish: allPublishItems.filter(it => it.item_status === 'ready_to_publish').length,
+    rejected: allPublishItems.filter(it => it.item_status === 'rejected').length,
+    all: allPublishItems.length,
+  };
+
+  const filtered = publishFilter === 'all'
+    ? allPublishItems
+    : allPublishItems.filter(it => it.item_status === publishFilter);
+
+  let html = '<div class="content-subtabs">';
+  html += subtabBtn('produced', `Menunggu Review (${counts.produced})`);
+  html += subtabBtn('ready_to_publish', `Disetujui (${counts.ready_to_publish})`);
+  html += subtabBtn('rejected', `Ditolak (${counts.rejected})`);
+  html += subtabBtn('all', `Semua (${counts.all})`);
+  html += '</div>';
+
+  if (!filtered.length) {
+    html += '<div class="empty-state">Tidak ada konten di kategori ini.</div>';
     document.getElementById('panel-content').innerHTML = html;
     return;
   }
 
-  const { data: proceedTopics, error: topicErr } = await sb
-    .from('canonical_topics')
-    .select(`
-      title, summary, discovered_at,
-      opportunity_assessments!inner ( opportunity_type, reasoning, decision ),
-      format_recommendations ( primary_format, secondary_format )
-    `)
-    .eq('opportunity_assessments.decision', 'proceed')
-    .order('discovered_at', { ascending: false })
-    .limit(50);
+  const statusLabel = { produced: 'Menunggu Review', ready_to_publish: 'Disetujui', rejected: 'Ditolak' };
 
-  if (topicErr) { errorPanel('panel-content', topicErr); return; }
-
-  if (!proceedTopics || !proceedTopics.length) {
-    document.getElementById('panel-content').innerHTML = '<div class="empty-state">Belum ada konten. Tahap produksi konten (S2–S8) belum berjalan — tab ini akan otomatis terisi begitu production_packages mulai diisi.</div>';
-    return;
-  }
-
-  let html = '<div class="empty-state" style="padding:12px 0 20px;text-align:left">Tahap produksi (S2–S8) belum berjalan. Berikut topik yang sudah lolos S1 (status "proceed") dan menunggu diproduksi jadi konten:</div>';
-  html += '<div class="grid-content">';
-  for (const t of proceedTopics) {
-    const fr = Array.isArray(t.format_recommendations) ? t.format_recommendations[0] : t.format_recommendations;
-    const oa = Array.isArray(t.opportunity_assessments) ? t.opportunity_assessments[0] : t.opportunity_assessments;
-    html += `<div class="content-card">
-      <div class="cbody">
-        <p class="ctitle">${escapeHtml(t.title)}</p>
-        <p class="csummary">${escapeHtml(t.summary || '')}</p>
-        <div class="cmeta">
-          <span class="tag">${escapeHtml(oa?.opportunity_type || '')}</span>
-          <span class="tag">${escapeHtml(fr?.primary_format || 'format belum ditentukan')}</span>
+  for (const it of filtered) {
+    const label = statusLabel[it.item_status] || it.item_status;
+    const isApproved = it.item_status === 'ready_to_publish';
+    const isRejected = it.item_status === 'rejected';
+    html += `<div class="publish-card">
+      <div class="pc-head">
+        <p class="ptitle">${escapeHtml(it.title)}</p>
+        <div class="pmeta">
+          <span class="badge ${escapeHtml(it.item_status)}">${escapeHtml(label)}</span>
+          <span class="tag">${escapeHtml(it.brand_name)}</span>
+          <span class="tag">${it.image_urls.length} slide</span>
+          <span class="tag">${escapeHtml(it.source || '-')}</span>
+          <span>${fmtDate(it.rendered_at)}</span>
         </div>
+      </div>
+      <div class="slides-strip">
+        ${it.image_urls.map(url => `<img src="${url}" loading="lazy" onclick="openLightbox('${url}')">`).join('')}
+      </div>
+      <div class="publish-actions">
+        <button class="pbtn ${isApproved ? 'pbtn-done' : 'pbtn-approve'}"
+                onclick="decidePublish('${it.content_item_id}','ready_to_publish',this)"
+                ${isApproved ? 'disabled' : ''}>${isApproved ? '✓ Disetujui' : 'Approve'}</button>
+        <button class="pbtn ${isRejected ? 'pbtn-done' : 'pbtn-reject'}"
+                onclick="decidePublish('${it.content_item_id}','rejected',this)"
+                ${isRejected ? 'disabled' : ''}>${isRejected ? '✓ Ditolak' : 'Reject'}</button>
       </div>
     </div>`;
   }
-  html += '</div>';
+
   document.getElementById('panel-content').innerHTML = html;
+}
+
+function subtabBtn(key, label) {
+  return `<button class="subtab-btn ${publishFilter === key ? 'active' : ''}" onclick="setPublishFilter('${key}')">${escapeHtml(label)}</button>`;
+}
+
+async function decidePublish(contentItemId, newStatus, btnEl) {
+  const card = btnEl.closest('.publish-card');
+  card.querySelectorAll('button').forEach(b => b.disabled = true);
+  const { error } = await sb.from('content_items').update({ status: newStatus }).eq('id', contentItemId);
+  if (error) {
+    alert('Gagal menyimpan keputusan: ' + error.message);
+    card.querySelectorAll('button').forEach(b => b.disabled = false);
+    return;
+  }
+  const it = allPublishItems.find(x => x.content_item_id === contentItemId);
+  if (it) it.item_status = newStatus;
+  renderPublishPanel();
 }
 
 async function loadCost() {
