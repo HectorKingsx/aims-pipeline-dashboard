@@ -5,87 +5,132 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AIMS V1 Pipeline Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { color-scheme: light; }
+  :root {
+    color-scheme: dark;
+    --bg: #0E1211;
+    --surface: #161B19;
+    --surface-2: #1D2422;
+    --border: #263029;
+    --text: #F7F7F3;
+    --text-dim: #9AA5A0;
+    --text-faint: #6B7772;
+    --green: #0F6B4F;
+    --green-bright: #28A978;
+    --gold: #D5A021;
+    --red: #B84040;
+  }
   * { box-sizing: border-box; }
   body {
-    margin: 0; padding: 24px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    background: #f7f7f5; color: #1a1a1a;
-    max-width: 1280px; margin-left: auto; margin-right: auto;
+    margin: 0; padding: 24px 24px 60px;
+    font-family: Poppins, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text);
+    max-width: 1320px; margin-left: auto; margin-right: auto;
+    -webkit-font-smoothing: antialiased;
   }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .subtitle { color: #6b6b6b; font-size: 13px; margin: 0 0 16px; }
-  .tabs {
-    display: flex; gap: 4px; border-bottom: 1px solid #e0e0dc; margin-bottom: 16px;
-    flex-wrap: wrap;
-  }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; }
+  .subtitle { color: var(--text-dim); font-size: 13px; margin: 0; }
+  .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 20px; flex-wrap: wrap; }
   .tab {
-    padding: 8px 14px; font-size: 13px; cursor: pointer; border: none; background: none;
-    color: #6b6b6b; border-bottom: 2px solid transparent; font-weight: 500;
+    padding: 9px 15px; font-size: 13px; cursor: pointer; border: none; background: none;
+    color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: 500;
+    font-family: inherit; transition: color .15s;
   }
-  .tab.active { color: #1a1a1a; border-bottom-color: #c15f3c; }
-  .tab:hover { color: #1a1a1a; }
+  .tab.active { color: var(--text); border-bottom-color: var(--green-bright); }
+  .tab:hover { color: var(--text); }
   .panel { display: none; }
   .panel.active { display: block; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
-  .card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px 14px; }
-  .card .label { font-size: 11px; color: #8a8a85; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 4px; }
-  .card .value { font-size: 22px; font-weight: 600; }
-  section-title { display:block; font-size: 13px; font-weight: 600; margin: 20px 0 8px; color: #444; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; border: 1px solid #e8e8e4; }
-  th, td { text-align: left; padding: 8px 10px; font-size: 12.5px; border-bottom: 1px solid #f0f0ec; }
-  th { background: #fafaf8; color: #6b6b6b; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 22px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; }
+  .card .label { font-size: 10.5px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+  .card .value { font-size: 23px; font-weight: 600; letter-spacing: -0.02em; }
+  .sec-title { display:block; font-size: 12px; font-weight: 600; margin: 22px 0 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  th, td { text-align: left; padding: 9px 11px; font-size: 12.5px; border-bottom: 1px solid var(--border); }
+  th { background: var(--surface-2); color: var(--text-faint); font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; }
   tr:last-child td { border-bottom: none; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-  .badge.completed { background: #e3f3e8; color: #2a7a42; }
-  .badge.running { background: #fff3d6; color: #92680a; }
-  .badge.stuck { background: #fde3e0; color: #b3311a; }
-  .badge.error { background: #fde3e0; color: #b3311a; }
-  .badge.proceed { background: #e3f3e8; color: #2a7a42; }
-  .badge.hold { background: #fff3d6; color: #92680a; }
-  .badge.reject { background: #f0f0ec; color: #6b6b6b; }
-  .badge.produced { background: #fff3d6; color: #92680a; }
-  .badge.ready_to_publish { background: #e3f3e8; color: #2a7a42; }
-  .badge.rejected { background: #fde3e0; color: #b3311a; }
-  .grid-content { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-  .content-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; padding: 12px; }
-  .content-card .ctitle { font-size: 13px; font-weight: 600; margin: 0 0 6px; line-height: 1.3; }
-  .content-card .csummary { font-size: 11.5px; color: #6b6b6b; margin: 0 0 8px; line-height: 1.4; }
-  .content-card .cmeta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 10.5px; }
-  .tag { background: #f0f0ec; color: #555; padding: 2px 6px; border-radius: 4px; }
-  .empty-state { text-align: center; padding: 40px 20px; color: #8a8a85; font-size: 13px; }
-  .refresh-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px; }
-  .refresh-btn { font-size: 12px; padding: 6px 12px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
-  .loading { color: #8a8a85; font-size: 12px; padding: 20px; text-align: center; }
+  .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge.completed, .badge.proceed { background: rgba(40,169,120,.16); color: var(--green-bright); }
+  .badge.running, .badge.hold { background: rgba(213,160,33,.16); color: var(--gold); }
+  .badge.stuck, .badge.error { background: rgba(184,64,64,.18); color: #E28080; }
+  .badge.reject { background: rgba(255,255,255,.06); color: var(--text-dim); }
+  .empty-state { text-align: center; padding: 44px 20px; color: var(--text-faint); font-size: 13px; }
+  .refresh-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; flex-wrap: wrap; gap: 10px; }
+  .refresh-btn {
+    font-size: 12.5px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); cursor: pointer; font-family: inherit; font-weight: 500;
+  }
+  .refresh-btn:hover { background: var(--surface-2); }
+  .loading { color: var(--text-faint); font-size: 12.5px; padding: 30px; text-align: center; }
   .score { font-variant-numeric: tabular-nums; }
-  .error-box { background:#fde3e0;border:1px solid #f3b3a8;border-radius:8px;padding:12px;font-size:12px;white-space:pre-wrap;word-break:break-all; }
-  footer { margin-top: 30px; color: #b0b0aa; font-size: 11px; text-align: center; }
+  .error-box { background: rgba(184,64,64,.12); border:1px solid rgba(184,64,64,.35); border-radius:10px; padding:14px; font-size:12.5px; white-space:pre-wrap; word-break:break-word; color:#E9A9A9; }
+  footer { margin-top: 34px; color: var(--text-faint); font-size: 11px; text-align: center; }
+  .tag { background: var(--surface-2); color: var(--text-dim); padding: 3px 8px; border-radius: 5px; font-size: 10.5px; }
 
-  /* Siap Publish - carousel preview & aksi */
-  .content-subtabs { display: flex; gap: 6px; margin-bottom: 14px; }
-  .subtab-btn {
-    font-size: 12px; padding: 6px 12px; border-radius: 14px; border: 1px solid #e0e0dc;
-    background: #fff; cursor: pointer; color: #6b6b6b;
+  .filter-row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 18px; }
+  .fbtn {
+    padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text-dim); font-size: 12.5px; cursor: pointer; font-family: inherit; font-weight: 500;
   }
-  .subtab-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
-  .publish-card { background: #fff; border: 1px solid #e8e8e4; border-radius: 8px; overflow: hidden; margin-bottom: 14px; }
-  .publish-card .pc-head { padding: 12px 14px 8px; }
-  .publish-card .ptitle { font-size: 14px; font-weight: 600; margin: 0 0 4px; }
-  .publish-card .pmeta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; color: #8a8a85; align-items: center; }
-  .slides-strip { display: flex; gap: 8px; overflow-x: auto; padding: 8px 14px; background: #fafaf8; }
-  .slides-strip img { height: 160px; width: auto; border-radius: 6px; border: 1px solid #e8e8e4; flex-shrink: 0; cursor: zoom-in; }
-  .publish-actions { padding: 10px 14px 14px; display: flex; gap: 8px; }
-  .pbtn { flex: 1; padding: 8px; border-radius: 6px; border: none; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-  .pbtn-approve { background: #2a7a42; color: #fff; }
-  .pbtn-reject { background: #b3311a; color: #fff; }
-  .pbtn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .pbtn.pbtn-done { background: #f0f0ec; color: #8a8a85; }
+  .fbtn.active { background: var(--green); border-color: var(--green); color: #fff; }
+  .fbtn:hover:not(.active) { background: var(--surface-2); color: var(--text); }
+
+  .pub-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .pub-head { padding: 15px 17px 13px; border-bottom: 1px solid var(--border); }
+  .pub-title { font-size: 15px; font-weight: 600; margin: 0 0 8px; line-height: 1.35; }
+  .pub-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .pub-body { padding: 15px 17px; }
+  .slides-strip { display: flex; gap: 9px; overflow-x: auto; padding-bottom: 6px; }
+  .slides-strip img {
+    width: 132px; height: 132px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border);
+    cursor: zoom-in; flex-shrink: 0; background: var(--surface-2);
+  }
+  .slides-strip img:hover { border-color: var(--green-bright); }
+  .cap-wrap { margin-top: 14px; }
+  .cap-label { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .cap-box {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    font-size: 12.5px; line-height: 1.6; color: var(--text-dim); white-space: pre-wrap;
+    max-height: 150px; overflow-y: auto; font-family: inherit;
+  }
+  .cap-box.expanded { max-height: none; }
+  .linkbtn { background: none; border: none; color: var(--green-bright); font-size: 11.5px; cursor: pointer; font-family: inherit; padding: 0; font-weight: 500; }
+  .linkbtn:hover { text-decoration: underline; }
+  .pub-actions { display: flex; gap: 8px; padding: 0 17px 15px; flex-wrap: wrap; }
+  .abtn {
+    flex: 1; min-width: 130px; padding: 11px 14px; border-radius: 8px; border: 1px solid transparent;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .abtn.approve { background: var(--green); color: #fff; }
+  .abtn.approve:hover { background: #12805e; }
+  .abtn.reject { background: transparent; border-color: rgba(184,64,64,.5); color: #E28080; }
+  .abtn.reject:hover { background: rgba(184,64,64,.14); }
+  .abtn.ghost { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+  .abtn.ghost:hover { background: #253029; }
+  .abtn.posted { background: var(--green-bright); color: #06231A; }
+  .abtn:disabled { opacity: .5; cursor: default; }
+  .reject-panel { padding: 0 17px 15px; display: none; }
+  .reject-panel.open { display: block; }
+  .reject-panel select {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-family: inherit; font-size: 12.5px; margin-bottom: 8px;
+  }
+  .note { font-size: 11.5px; color: var(--text-faint); margin-top: 8px; }
+
   #lightbox {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
-    z-index: 100; align-items: center; justify-content: center; cursor: zoom-out;
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 999;
+    align-items: center; justify-content: center; cursor: zoom-out; padding: 24px;
   }
-  #lightbox img { max-width: 90vw; max-height: 90vh; border-radius: 8px; }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 10px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--green); color: #fff; padding: 11px 20px; border-radius: 24px;
+    font-size: 13px; font-weight: 500; z-index: 1000; opacity: 0; transition: opacity .2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
@@ -93,7 +138,7 @@
 <div class="refresh-row">
   <div>
     <h1>AIMS V1 Pipeline Dashboard</h1>
-    <p class="subtitle">Monitor discovery runs (S0–S8) dan hasil konten — data live dari Supabase</p>
+    <p class="subtitle">Monitor discovery runs (S0–S8) dan review konten siap publish — data live dari Supabase</p>
   </div>
   <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
 </div>
@@ -112,14 +157,27 @@
 <div id="panel-content" class="panel"><div class="loading">Memuat...</div></div>
 <div id="panel-cost" class="panel"><div class="loading">Memuat...</div></div>
 
-<footer>AIMS V1 Pipeline Dashboard — data read-only dari Supabase (kecuali Approve/Reject di tab Siap Publish)</footer>
+<footer>AIMS V1 Pipeline Dashboard — Approve/Reject &amp; tandai publish langsung dari tab Siap Publish</footer>
 
 <div id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt=""></div>
+<div id="toast" class="toast"></div>
 
 <script>
 const SUPABASE_URL = 'https://fwvenhqyirkgujfkwbvm.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_fz_uOjh55uYR7W47-11hDQ_hCgs2fI_';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const HASHTAGS = '#ekonomi #keuangan #finansial #ekonomiindonesia #edukasifinansial #literasikeuangan #thedailyeconomics';
+
+const REJECT_REASONS = [
+  'Fakta keliru / perlu verifikasi',
+  'Angle lemah / tidak menarik',
+  'Visual kurang bagus',
+  'Duplikat dengan konten lain',
+  'Bahasa / tone tidak sesuai brand',
+  'Topik sudah basi',
+  'Lainnya'
+];
 
 function switchTab(name) {
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.panel === name));
@@ -133,8 +191,23 @@ function escapeHtml(s) {
 
 function fmtDate(d) {
   if (!d) return '–';
-  const dt = new Date(d);
-  return dt.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(d).toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function openLightbox(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
 }
 
 function runStatusBadge(run) {
@@ -155,15 +228,7 @@ function decisionBadge(d) {
 
 function errorPanel(panelId, err) {
   document.getElementById(panelId).innerHTML =
-    '<div class="error-box">Gagal memuat data:\n' + escapeHtml(err?.message || String(err)) + '</div>';
-}
-
-function openLightbox(url) {
-  document.getElementById('lightbox-img').src = url;
-  document.getElementById('lightbox').style.display = 'flex';
-}
-function closeLightbox() {
-  document.getElementById('lightbox').style.display = 'none';
+    '<div class="error-box">Gagal memuat data:\n' + escapeHtml(err && err.message ? err.message : String(err)) + '</div>';
 }
 
 let allRuns = [];
@@ -179,30 +244,40 @@ async function loadOverview() {
 
   const totalRuns = allRuns.length;
   const completed = allRuns.filter(r => r.status === 'completed').length;
-  const stuckOrRunning = allRuns.filter(r => r.status === 'running');
-  const stuck = stuckOrRunning.filter(r => (Date.now() - new Date(r.created_at).getTime()) / 60000 > 15).length;
-  const activeRunning = stuckOrRunning.length - stuck;
+  const runningRuns = allRuns.filter(r => r.status === 'running');
+  const stuck = runningRuns.filter(r => (Date.now() - new Date(r.created_at).getTime()) / 60000 > 15).length;
+  const activeRunning = runningRuns.length - stuck;
   const totalApproved = allRuns.reduce((s, r) => s + (r.total_approved_topics || 0), 0);
   const totalTopics = allRuns.reduce((s, r) => s + (r.total_canonical_topics || 0), 0);
   const latest = allRuns[0];
 
+  const revRes = await sb.from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'produced');
+  const pubRes = await sb.from('content_items').select('id', { count: 'exact', head: true }).eq('status', 'ready_to_publish');
+  const siapReview = revRes.count || 0;
+  const siapPosting = pubRes.count || 0;
+
   let html = '<div class="cards">';
-  html += `<div class="card"><div class="label">Total Runs</div><div class="value">${totalRuns}</div></div>`;
-  html += `<div class="card"><div class="label">Completed</div><div class="value">${completed}</div></div>`;
-  html += `<div class="card"><div class="label">Sedang Jalan</div><div class="value">${activeRunning}</div></div>`;
-  html += `<div class="card"><div class="label">Stuck (&gt;15m)</div><div class="value" style="color:${stuck>0?'#b3311a':'inherit'}">${stuck}</div></div>`;
-  html += `<div class="card"><div class="label">Total Topik Ditemukan</div><div class="value">${totalTopics}</div></div>`;
-  html += `<div class="card"><div class="label">Total Approved (proceed)</div><div class="value">${totalApproved}</div></div>`;
+  html += '<div class="card"><div class="label">Total Runs</div><div class="value">' + totalRuns + '</div></div>';
+  html += '<div class="card"><div class="label">Completed</div><div class="value">' + completed + '</div></div>';
+  html += '<div class="card"><div class="label">Sedang Jalan</div><div class="value">' + activeRunning + '</div></div>';
+  html += '<div class="card"><div class="label">Stuck (&gt;15m)</div><div class="value" style="color:' + (stuck > 0 ? '#E28080' : 'inherit') + '">' + stuck + '</div></div>';
+  html += '<div class="card"><div class="label">Total Topik</div><div class="value">' + totalTopics + '</div></div>';
+  html += '<div class="card"><div class="label">Approved (proceed)</div><div class="value">' + totalApproved + '</div></div>';
+  html += '<div class="card"><div class="label">Menunggu Review</div><div class="value" style="color:' + (siapReview > 0 ? '#D5A021' : 'inherit') + '">' + siapReview + '</div></div>';
+  html += '<div class="card"><div class="label">Siap Diposting</div><div class="value" style="color:' + (siapPosting > 0 ? '#28A978' : 'inherit') + '">' + siapPosting + '</div></div>';
   html += '</div>';
 
   if (latest) {
-    html += '<section-title>Run Terakhir</section-title>';
+    html += '<span class="sec-title">Run Terakhir</span>';
     html += '<table><tbody>';
-    html += `<tr><th>Status</th><td>${runStatusBadge(latest)}</td></tr>`;
-    html += `<tr><th>Stage Terakhir</th><td>${escapeHtml(latest.current_stage)}</td></tr>`;
-    html += `<tr><th>Dimulai</th><td>${fmtDate(latest.created_at)}</td></tr>`;
-    html += `<tr><th>Selesai</th><td>${fmtDate(latest.completed_at)}</td></tr>`;
-    html += `<tr><th>Raw → Normalized → Clusters → Topics → Scored → Approved</th><td>${latest.total_raw_items||0} → ${latest.total_normalized_items||0} → ${latest.total_clusters||0} → ${latest.total_canonical_topics||0} → ${latest.total_scored_topics||0} → ${latest.total_approved_topics||0}</td></tr>`;
+    html += '<tr><th style="width:38%">Status</th><td>' + runStatusBadge(latest) + '</td></tr>';
+    html += '<tr><th>Stage Terakhir</th><td>' + escapeHtml(latest.current_stage) + '</td></tr>';
+    html += '<tr><th>Dimulai</th><td>' + fmtDate(latest.created_at) + '</td></tr>';
+    html += '<tr><th>Selesai</th><td>' + fmtDate(latest.completed_at) + '</td></tr>';
+    html += '<tr><th>Raw → Normalized → Clusters → Topics → Scored → Approved</th><td>' +
+      (latest.total_raw_items || 0) + ' → ' + (latest.total_normalized_items || 0) + ' → ' + (latest.total_clusters || 0) +
+      ' → ' + (latest.total_canonical_topics || 0) + ' → ' + (latest.total_scored_topics || 0) + ' → ' + (latest.total_approved_topics || 0) +
+      '</td></tr>';
     html += '</tbody></table>';
   }
 
@@ -221,18 +296,18 @@ async function loadRuns() {
 
   let html = '<table><thead><tr><th>Status</th><th>Stage</th><th>Raw</th><th>Norm</th><th>Cluster</th><th>Topics</th><th>Scored</th><th>Approved</th><th>Mulai</th><th>Selesai</th></tr></thead><tbody>';
   for (const r of allRuns) {
-    html += `<tr>
-      <td>${runStatusBadge(r)}</td>
-      <td>${escapeHtml(r.current_stage)}</td>
-      <td>${r.total_raw_items||0}</td>
-      <td>${r.total_normalized_items||0}</td>
-      <td>${r.total_clusters||0}</td>
-      <td>${r.total_canonical_topics||0}</td>
-      <td>${r.total_scored_topics||0}</td>
-      <td>${r.total_approved_topics||0}</td>
-      <td>${fmtDate(r.created_at)}</td>
-      <td>${fmtDate(r.completed_at)}</td>
-    </tr>`;
+    html += '<tr>' +
+      '<td>' + runStatusBadge(r) + '</td>' +
+      '<td>' + escapeHtml(r.current_stage) + '</td>' +
+      '<td>' + (r.total_raw_items || 0) + '</td>' +
+      '<td>' + (r.total_normalized_items || 0) + '</td>' +
+      '<td>' + (r.total_clusters || 0) + '</td>' +
+      '<td>' + (r.total_canonical_topics || 0) + '</td>' +
+      '<td>' + (r.total_scored_topics || 0) + '</td>' +
+      '<td>' + (r.total_approved_topics || 0) + '</td>' +
+      '<td>' + fmtDate(r.created_at) + '</td>' +
+      '<td>' + fmtDate(r.completed_at) + '</td>' +
+      '</tr>';
   }
   html += '</tbody></table>';
   document.getElementById('panel-runs').innerHTML = html;
@@ -241,12 +316,7 @@ async function loadRuns() {
 async function loadTopics() {
   const { data: rows, error } = await sb
     .from('canonical_topics')
-    .select(`
-      title, summary, primary_source_name, published_at, discovered_at,
-      topic_scores ( total_score, passed_threshold ),
-      opportunity_assessments ( opportunity_score, opportunity_type, decision ),
-      format_recommendations ( primary_format, secondary_format )
-    `)
+    .select('title, summary, primary_source_name, published_at, discovered_at, topic_scores ( total_score, passed_threshold ), opportunity_assessments ( opportunity_score, opportunity_type, decision ), format_recommendations ( primary_format, secondary_format )')
     .eq('is_rejected', false)
     .order('discovered_at', { ascending: false })
     .limit(50);
@@ -263,88 +333,97 @@ async function loadTopics() {
     const ts = Array.isArray(t.topic_scores) ? t.topic_scores[0] : t.topic_scores;
     const oa = Array.isArray(t.opportunity_assessments) ? t.opportunity_assessments[0] : t.opportunity_assessments;
     const fr = Array.isArray(t.format_recommendations) ? t.format_recommendations[0] : t.format_recommendations;
-    html += `<tr>
-      <td style="max-width:280px">${escapeHtml(t.title)}</td>
-      <td>${escapeHtml(t.primary_source_name)}</td>
-      <td class="score">${ts?.total_score ?? '–'}</td>
-      <td class="score">${oa?.opportunity_score ?? '–'} ${oa?.opportunity_type ? '('+escapeHtml(oa.opportunity_type)+')' : ''}</td>
-      <td>${decisionBadge(oa?.decision)}</td>
-      <td>${fr?.primary_format ? escapeHtml(fr.primary_format) + (fr.secondary_format ? ' / '+escapeHtml(fr.secondary_format) : '') : '–'}</td>
-    </tr>`;
+    html += '<tr>' +
+      '<td style="max-width:300px">' + escapeHtml(t.title) + '</td>' +
+      '<td>' + escapeHtml(t.primary_source_name) + '</td>' +
+      '<td class="score">' + (ts && ts.total_score != null ? ts.total_score : '–') + '</td>' +
+      '<td class="score">' + (oa && oa.opportunity_score != null ? oa.opportunity_score : '–') +
+        (oa && oa.opportunity_type ? ' (' + escapeHtml(oa.opportunity_type) + ')' : '') + '</td>' +
+      '<td>' + decisionBadge(oa && oa.decision) + '</td>' +
+      '<td>' + (fr && fr.primary_format ? escapeHtml(fr.primary_format) + (fr.secondary_format ? ' / ' + escapeHtml(fr.secondary_format) : '') : '–') + '</td>' +
+      '</tr>';
   }
   html += '</tbody></table>';
   document.getElementById('panel-topics').innerHTML = html;
 }
 
-// ===== Tab "Siap Publish" — hasil render S3 (content_production) =====
-// Diperbarui: sebelumnya membaca production_packages (tabel lama, kosong untuk
-// pipeline S1→S2→S3 baru). Sekarang membaca content_production (hasil render
-// nyata dari workflow "S3 - Content Generator"), join ke content_items untuk
-// status keputusan publish dan ke canonical_topics untuk judul/ringkasan.
-// Filter default: "produced" (menunggu review) - founder klik Approve/Reject,
-// yang meng-update content_items.status ke 'ready_to_publish' / 'rejected'.
-let allPublishItems = [];
+let publishItems = [];
 let publishFilter = 'produced';
 
-async function loadContent() {
-  const { data: productions, error: prodErr } = await sb
-    .from('content_production')
-    .select('id, content_item_id, image_urls, template_used, rendered_at, status')
-    .eq('status', 'success')
-    .order('rendered_at', { ascending: false })
-    .limit(100);
+function buildCaption(it) {
+  const slides = Array.isArray(it.slides) ? it.slides : [];
+  const out = [];
+  const cover = slides.find(s => s.slide_number === 1) || slides[0];
 
-  if (prodErr) { errorPanel('panel-content', prodErr); return; }
-
-  if (!productions || !productions.length) {
-    document.getElementById('panel-content').innerHTML =
-      '<div class="empty-state">Belum ada konten yang selesai dirender. Jalankan workflow S3 - Content Generator terlebih dahulu.</div>';
-    return;
+  if (cover) {
+    if (cover.title) out.push(String(cover.title).toUpperCase());
+    if (cover.text) out.push(cover.text);
+    out.push('');
   }
 
-  const itemIds = [...new Set(productions.map(p => p.content_item_id))];
-  const { data: items, error: itemErr } = await sb
-    .from('content_items')
-    .select('id, canonical_topic_id, brand_id, status')
-    .in('id', itemIds);
-  if (itemErr) { errorPanel('panel-content', itemErr); return; }
-  const itemMap = new Map((items || []).map(i => [i.id, i]));
+  for (const s of slides.slice(1)) {
+    if (s.title) out.push('▸ ' + s.title);
+    if (s.stat_highlight && s.stat_highlight.value) {
+      const sh = s.stat_highlight;
+      out.push((sh.label ? sh.label + ': ' : '') + sh.value + (sh.context ? ' — ' + sh.context : ''));
+    }
+    if (s.text) out.push(s.text);
+    const bl = Array.isArray(s.bullets) ? s.bullets : [];
+    for (const b of bl) out.push('• ' + b);
+    out.push('');
+  }
 
-  const topicIds = [...new Set((items || []).map(i => i.canonical_topic_id).filter(Boolean))];
-  const brandIds = [...new Set((items || []).map(i => i.brand_id).filter(Boolean))];
+  if (it.cta) { out.push(it.cta); out.push(''); }
+  if (it.source_name) { out.push('Sumber: ' + it.source_name); out.push(''); }
+  out.push(HASHTAGS);
 
-  const [{ data: topics }, { data: brands }] = await Promise.all([
-    topicIds.length
-      ? sb.from('canonical_topics').select('id, title, summary, primary_source_name').in('id', topicIds)
-      : Promise.resolve({ data: [] }),
-    brandIds.length
-      ? sb.from('brands').select('id, name').in('id', brandIds)
-      : Promise.resolve({ data: [] }),
-  ]);
-  const topicMap = new Map((topics || []).map(t => [t.id, t]));
-  const brandMap = new Map((brands || []).map(b => [b.id, b]));
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
-  allPublishItems = productions
-    .filter(p => Array.isArray(p.image_urls) && p.image_urls.length > 0)
+async function loadContent() {
+  const prodRes = await sb.from('content_production')
+    .select('id, content_item_id, image_urls, template_used, status, rendered_at')
+    .eq('status', 'success').order('rendered_at', { ascending: false });
+  const itemRes = await sb.from('content_items')
+    .select('id, status, canonical_topic_id, reject_reason, reviewed_at, published_at, created_at');
+  const draftRes = await sb.from('carousel_drafts').select('content_item_id, slides, cta');
+  const topicRes = await sb.from('canonical_topics').select('id, title, primary_source_name');
+
+  const firstErr = prodRes.error || itemRes.error || draftRes.error || topicRes.error;
+  if (firstErr) { errorPanel('panel-content', firstErr); return; }
+
+  const itemMap = new Map((itemRes.data || []).map(r => [r.id, r]));
+  const draftMap = new Map((draftRes.data || []).map(r => [r.content_item_id, r]));
+  const topicMap = new Map((topicRes.data || []).map(r => [r.id, r]));
+
+  publishItems = (prodRes.data || [])
+    .filter(p => (p.image_urls || []).length > 0)
     .map(p => {
-      const item = itemMap.get(p.content_item_id);
-      const topic = item ? topicMap.get(item.canonical_topic_id) : null;
-      const brand = item ? brandMap.get(item.brand_id) : null;
+      const item = itemMap.get(p.content_item_id) || {};
+      const draft = draftMap.get(p.content_item_id) || {};
+      const topic = topicMap.get(item.canonical_topic_id) || {};
       return {
         production_id: p.id,
         content_item_id: p.content_item_id,
-        image_urls: p.image_urls,
+        images: p.image_urls || [],
         template_used: p.template_used,
         rendered_at: p.rendered_at,
-        item_status: item ? item.status : 'unknown',
-        title: topic ? topic.title : '(judul tidak tersedia)',
-        summary: topic ? topic.summary : '',
-        source: topic ? topic.primary_source_name : '-',
-        brand_name: brand ? brand.name : '-',
+        status: item.status || 'produced',
+        reject_reason: item.reject_reason,
+        published_at: item.published_at,
+        slides: draft.slides,
+        cta: draft.cta,
+        title: topic.title || '(judul tidak ditemukan)',
+        source_name: topic.primary_source_name
       };
     });
 
   renderPublishPanel();
+}
+
+function countBy(status) {
+  if (status === 'all') return publishItems.length;
+  return publishItems.filter(i => i.status === status).length;
 }
 
 function setPublishFilter(f) {
@@ -352,80 +431,178 @@ function setPublishFilter(f) {
   renderPublishPanel();
 }
 
+function fbtn(key, label) {
+  const active = publishFilter === key ? ' active' : '';
+  return '<button class="fbtn' + active + '" onclick="setPublishFilter(\'' + key + '\')">' + label + ' (' + countBy(key) + ')</button>';
+}
+
+function statusBadge(it) {
+  if (it.status === 'produced') return '<span class="badge running">Menunggu Review</span>';
+  if (it.status === 'ready_to_publish') return '<span class="badge completed">Disetujui</span>';
+  if (it.status === 'published') return '<span class="badge completed">Sudah Diposting</span>';
+  if (it.status === 'rejected') return '<span class="badge stuck">Ditolak</span>';
+  return '<span class="badge reject">' + escapeHtml(it.status) + '</span>';
+}
+
 function renderPublishPanel() {
-  const counts = {
-    produced: allPublishItems.filter(it => it.item_status === 'produced').length,
-    ready_to_publish: allPublishItems.filter(it => it.item_status === 'ready_to_publish').length,
-    rejected: allPublishItems.filter(it => it.item_status === 'rejected').length,
-    all: allPublishItems.length,
-  };
+  const el = document.getElementById('panel-content');
 
-  const filtered = publishFilter === 'all'
-    ? allPublishItems
-    : allPublishItems.filter(it => it.item_status === publishFilter);
-
-  let html = '<div class="content-subtabs">';
-  html += subtabBtn('produced', `Menunggu Review (${counts.produced})`);
-  html += subtabBtn('ready_to_publish', `Disetujui (${counts.ready_to_publish})`);
-  html += subtabBtn('rejected', `Ditolak (${counts.rejected})`);
-  html += subtabBtn('all', `Semua (${counts.all})`);
+  let html = '<div class="filter-row">';
+  html += fbtn('produced', 'Menunggu Review');
+  html += fbtn('ready_to_publish', 'Disetujui');
+  html += fbtn('published', 'Sudah Diposting');
+  html += fbtn('rejected', 'Ditolak');
+  html += fbtn('all', 'Semua');
   html += '</div>';
 
-  if (!filtered.length) {
-    html += '<div class="empty-state">Tidak ada konten di kategori ini.</div>';
-    document.getElementById('panel-content').innerHTML = html;
+  const list = publishFilter === 'all' ? publishItems : publishItems.filter(i => i.status === publishFilter);
+
+  if (!list.length) {
+    html += '<div class="empty-state">Tidak ada konten pada kategori ini.</div>';
+    el.innerHTML = html;
     return;
   }
 
-  const statusLabel = { produced: 'Menunggu Review', ready_to_publish: 'Disetujui', rejected: 'Ditolak' };
+  for (const it of list) {
+    const caption = buildCaption(it);
+    const cid = it.content_item_id;
 
-  for (const it of filtered) {
-    const label = statusLabel[it.item_status] || it.item_status;
-    const isApproved = it.item_status === 'ready_to_publish';
-    const isRejected = it.item_status === 'rejected';
-    html += `<div class="publish-card">
-      <div class="pc-head">
-        <p class="ptitle">${escapeHtml(it.title)}</p>
-        <div class="pmeta">
-          <span class="badge ${escapeHtml(it.item_status)}">${escapeHtml(label)}</span>
-          <span class="tag">${escapeHtml(it.brand_name)}</span>
-          <span class="tag">${it.image_urls.length} slide</span>
-          <span class="tag">${escapeHtml(it.source || '-')}</span>
-          <span>${fmtDate(it.rendered_at)}</span>
-        </div>
-      </div>
-      <div class="slides-strip">
-        ${it.image_urls.map(url => `<img src="${url}" loading="lazy" onclick="openLightbox('${url}')">`).join('')}
-      </div>
-      <div class="publish-actions">
-        <button class="pbtn ${isApproved ? 'pbtn-done' : 'pbtn-approve'}"
-                onclick="decidePublish('${it.content_item_id}','ready_to_publish',this)"
-                ${isApproved ? 'disabled' : ''}>${isApproved ? '✓ Disetujui' : 'Approve'}</button>
-        <button class="pbtn ${isRejected ? 'pbtn-done' : 'pbtn-reject'}"
-                onclick="decidePublish('${it.content_item_id}','rejected',this)"
-                ${isRejected ? 'disabled' : ''}>${isRejected ? '✓ Ditolak' : 'Reject'}</button>
-      </div>
-    </div>`;
+    html += '<div class="pub-card">';
+    html += '<div class="pub-head">';
+    html += '<p class="pub-title">' + escapeHtml(it.title) + '</p>';
+    html += '<div class="pub-meta">';
+    html += statusBadge(it);
+    if (it.source_name) html += '<span class="tag">' + escapeHtml(it.source_name) + '</span>';
+    html += '<span class="tag">' + it.images.length + ' slide</span>';
+    html += '<span class="tag">' + fmtDate(it.rendered_at) + '</span>';
+    if (it.reject_reason) html += '<span class="tag" style="color:#E28080">' + escapeHtml(it.reject_reason) + '</span>';
+    if (it.published_at) html += '<span class="tag" style="color:#28A978">Diposting ' + fmtDate(it.published_at) + '</span>';
+    html += '</div></div>';
+
+    html += '<div class="pub-body">';
+    html += '<div class="slides-strip">';
+    for (const url of it.images) {
+      html += '<img src="' + escapeHtml(url) + '" loading="lazy" onclick="openLightbox(\'' + escapeHtml(url) + '\')" alt="">';
+    }
+    html += '</div>';
+
+    html += '<div class="cap-wrap">';
+    html += '<div class="cap-label"><span>Caption siap posting</span>';
+    html += '<span><button class="linkbtn" onclick="toggleCap(\'cap-' + cid + '\')">Perbesar</button> &nbsp;·&nbsp; ';
+    html += '<button class="linkbtn" onclick="copyCaption(\'' + cid + '\')">Salin caption</button></span>';
+    html += '</div>';
+    html += '<div class="cap-box" id="cap-' + cid + '">' + escapeHtml(caption) + '</div>';
+    html += '</div></div>';
+
+    html += '<div class="pub-actions">';
+    html += '<button class="abtn ghost" onclick="downloadAll(\'' + cid + '\')">⬇ Download semua slide</button>';
+    if (it.status === 'produced') {
+      html += '<button class="abtn approve" onclick="decide(\'' + cid + '\',\'ready_to_publish\')">✓ Approve</button>';
+      html += '<button class="abtn reject" onclick="toggleReject(\'' + cid + '\')">✕ Reject</button>';
+    } else if (it.status === 'ready_to_publish') {
+      html += '<button class="abtn posted" onclick="markPublished(\'' + cid + '\')">✓ Tandai sudah diposting</button>';
+      html += '<button class="abtn reject" onclick="toggleReject(\'' + cid + '\')">✕ Reject</button>';
+    } else if (it.status === 'rejected') {
+      html += '<button class="abtn approve" onclick="decide(\'' + cid + '\',\'ready_to_publish\')">↺ Approve ulang</button>';
+    } else if (it.status === 'published') {
+      html += '<button class="abtn ghost" disabled>Sudah diposting</button>';
+    }
+    html += '</div>';
+
+    html += '<div class="reject-panel" id="rej-' + cid + '">';
+    html += '<select id="rejsel-' + cid + '">' + REJECT_REASONS.map(r => '<option>' + escapeHtml(r) + '</option>').join('') + '</select>';
+    html += '<button class="abtn reject" style="width:100%" onclick="confirmReject(\'' + cid + '\')">Konfirmasi reject</button>';
+    html += '<div class="note">Alasan reject dipakai untuk memperbaiki prompt S2/S3 nanti.</div>';
+    html += '</div>';
+
+    html += '</div>';
   }
 
-  document.getElementById('panel-content').innerHTML = html;
+  el.innerHTML = html;
 }
 
-function subtabBtn(key, label) {
-  return `<button class="subtab-btn ${publishFilter === key ? 'active' : ''}" onclick="setPublishFilter('${key}')">${escapeHtml(label)}</button>`;
+function toggleCap(id) {
+  document.getElementById(id).classList.toggle('expanded');
 }
 
-async function decidePublish(contentItemId, newStatus, btnEl) {
-  const card = btnEl.closest('.publish-card');
-  card.querySelectorAll('button').forEach(b => b.disabled = true);
-  const { error } = await sb.from('content_items').update({ status: newStatus }).eq('id', contentItemId);
-  if (error) {
-    alert('Gagal menyimpan keputusan: ' + error.message);
-    card.querySelectorAll('button').forEach(b => b.disabled = false);
-    return;
+function toggleReject(cid) {
+  document.getElementById('rej-' + cid).classList.toggle('open');
+}
+
+async function copyCaption(cid) {
+  const it = publishItems.find(i => i.content_item_id === cid);
+  if (!it) return;
+  const text = buildCaption(it);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Caption disalin ke clipboard');
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    toast('Caption disalin');
   }
-  const it = allPublishItems.find(x => x.content_item_id === contentItemId);
-  if (it) it.item_status = newStatus;
+}
+
+async function downloadAll(cid) {
+  const it = publishItems.find(i => i.content_item_id === cid);
+  if (!it) return;
+  toast('Mengunduh ' + it.images.length + ' slide...');
+  const safe = (it.title || 'carousel').replace(/[^a-zA-Z0-9]+/g, '-').slice(0, 40).toLowerCase();
+  for (let i = 0; i < it.images.length; i++) {
+    try {
+      const res = await fetch(it.images[i]);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safe + '-slide-' + (i + 1) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      await new Promise(r => setTimeout(r, 350));
+    } catch (e) {
+      window.open(it.images[i], '_blank');
+    }
+  }
+}
+
+async function decide(cid, newStatus) {
+  const patch = { status: newStatus, reviewed_at: new Date().toISOString() };
+  if (newStatus === 'ready_to_publish') patch.reject_reason = null;
+  const { error } = await sb.from('content_items').update(patch).eq('id', cid);
+  if (error) { toast('Gagal: ' + error.message); return; }
+  const it = publishItems.find(i => i.content_item_id === cid);
+  if (it) { it.status = newStatus; if (newStatus === 'ready_to_publish') it.reject_reason = null; }
+  toast(newStatus === 'ready_to_publish' ? 'Disetujui' : 'Diperbarui');
+  renderPublishPanel();
+}
+
+async function confirmReject(cid) {
+  const reason = document.getElementById('rejsel-' + cid).value;
+  const { error } = await sb.from('content_items')
+    .update({ status: 'rejected', reject_reason: reason, reviewed_at: new Date().toISOString() })
+    .eq('id', cid);
+  if (error) { toast('Gagal: ' + error.message); return; }
+  const it = publishItems.find(i => i.content_item_id === cid);
+  if (it) { it.status = 'rejected'; it.reject_reason = reason; }
+  toast('Ditolak — alasan tersimpan');
+  renderPublishPanel();
+}
+
+async function markPublished(cid) {
+  const now = new Date().toISOString();
+  const { error } = await sb.from('content_items')
+    .update({ status: 'published', published_at: now })
+    .eq('id', cid);
+  if (error) { toast('Gagal: ' + error.message); return; }
+  const it = publishItems.find(i => i.content_item_id === cid);
+  if (it) { it.status = 'published'; it.published_at = now; }
+  toast('Ditandai sudah diposting');
   renderPublishPanel();
 }
 
@@ -439,7 +616,7 @@ async function loadCost() {
   const grouped = {};
   let total = 0;
   for (const r of (byStage || [])) {
-    const key = `${r.stage}|${r.provider}|${r.model_version}`;
+    const key = r.stage + '|' + r.provider + '|' + r.model_version;
     if (!grouped[key]) grouped[key] = { stage: r.stage, provider: r.provider, model_version: r.model_version, calls: 0, cost: 0, tin: 0, tout: 0 };
     grouped[key].calls++;
     grouped[key].cost += Number(r.cost_usd || 0);
@@ -450,7 +627,7 @@ async function loadCost() {
   const rows = Object.values(grouped).sort((a, b) => b.cost - a.cost);
 
   let html = '<div class="cards">';
-  html += `<div class="card"><div class="label">Total Biaya AI</div><div class="value">$${total.toFixed(4)}</div></div>`;
+  html += '<div class="card"><div class="label">Total Biaya AI</div><div class="value">$' + total.toFixed(4) + '</div></div>';
   html += '</div>';
 
   if (!rows.length) {
@@ -458,15 +635,15 @@ async function loadCost() {
   } else {
     html += '<table><thead><tr><th>Stage</th><th>Provider</th><th>Model</th><th>Calls</th><th>Tokens In</th><th>Tokens Out</th><th>Biaya (USD)</th></tr></thead><tbody>';
     for (const r of rows) {
-      html += `<tr>
-        <td>${escapeHtml(r.stage)}</td>
-        <td>${escapeHtml(r.provider)}</td>
-        <td>${escapeHtml(r.model_version)}</td>
-        <td>${r.calls}</td>
-        <td>${r.tin}</td>
-        <td>${r.tout}</td>
-        <td>$${r.cost.toFixed(4)}</td>
-      </tr>`;
+      html += '<tr>' +
+        '<td>' + escapeHtml(r.stage) + '</td>' +
+        '<td>' + escapeHtml(r.provider) + '</td>' +
+        '<td>' + escapeHtml(r.model_version) + '</td>' +
+        '<td>' + r.calls + '</td>' +
+        '<td>' + r.tin + '</td>' +
+        '<td>' + r.tout + '</td>' +
+        '<td>$' + r.cost.toFixed(4) + '</td>' +
+        '</tr>';
     }
     html += '</tbody></table>';
   }
@@ -476,8 +653,13 @@ async function loadCost() {
 async function loadAll() {
   document.querySelectorAll('.panel').forEach(p => p.innerHTML = '<div class="loading">Memuat...</div>');
   await loadOverview();
-  await Promise.all([loadRuns(), loadTopics(), loadContent(), loadCost()]);
+  await loadRuns();
+  await loadTopics();
+  await loadContent();
+  await loadCost();
 }
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
 
 loadAll();
 </script>
